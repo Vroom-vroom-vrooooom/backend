@@ -1,0 +1,26 @@
+11-13 04:17:02.405  7145  7145 D [GAAS][SDK]OnDeviceStreamTts: [main]onServiceConnected
+11-13 04:17:02.411  7145  7145 I [NaviHelper][SDK]c: [main]onServiceConnected
+11-13 04:17:02.415  7145  7145 I [NaviHelper][SDK]c: [main]getServiceVersion = 3.0.4
+11-13 04:17:52.425  7145  7305 D [GAAS][SDK]OnDeviceStreamTts: [DefaultDispatcher-worker-1]doSpeak(io.chagok.app.pleos) text=영랑호는 속초에 있는 호수예요. 호수 주위에 산책로가 있다고 합니다., isFinal=true
+11-13 04:17:52.469  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onResponse UpdateTtsReady 
+11-13 04:17:52.469  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onReady
+11-13 04:17:52.469  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onReady
+11-13 04:17:52.495  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onResponse UpdateTtsStart 
+11-13 04:17:52.495  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onStart
+11-13 04:17:52.495  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onStart
+11-13 04:18:01.514  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onResponse UpdateTtsDone 
+11-13 04:18:01.514  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onDone
+11-13 04:18:01.514  7145  7169 D [GAAS][SDK]TtsCallback: [binder:7145_2]onDone
+11-13 04:18:17.458  7145  7305 D [GAAS][SDK]OnDeviceStreamTts: [DefaultDispatcher-worker-1]doSpeak(io.chagok.app.pleos) text=WRONG TRIP MESSAGE SHOULD NOT PLAY, isFinal=true
+11-13 04:18:17.468  7145  7477 D [GAAS][SDK]TtsCallback: [binder:7145_5]onResponse UpdateTtsReady 
+11-13 04:18:17.468  7145  7477 D [GAAS][SDK]TtsCallback: [binder:7145_5]onReady
+11-13 04:18:17.469  7145  7477 D [GAAS][SDK]TtsCallback: [binder:7145_5]onReady
+11-13 04:18:17.473  7145  7477 D [GAAS][SDK]TtsCallback: [binder:7145_5]onResponse UpdateTtsStart 
+11-13 04:18:17.473  7145  7477 D [GAAS][SDK]TtsCallback: [binder:7145_5]onStart
+11-13 04:18:17.473  7145  7477 D [GAAS][SDK]TtsCallback: [binder:7145_5]onStart
+11-13 04:18:19.743  7145  7168 D [GAAS][SDK]TtsCallback: [binder:7145_1]onResponse UpdateTtsDone 
+11-13 04:18:19.744  7145  7168 D [GAAS][SDK]TtsCallback: [binder:7145_1]onDone
+11-13 04:18:19.744  7145  7168 D [GAAS][SDK]TtsCallback: [binder:7145_1]onDone
+11-13 04:18:49.490  7145  7145 W ChagokContract: Ignoring invalid SpeakCommand: SpeakCommand text is empty
+11-13 04:18:49.754  7145  7145 W ChagokContract: Ignoring invalid SpeakCommand: Unsupported SpeakCommand version 9
+11-13 04:18:49.983  7145  7145 W ChagokContract: Ignoring invalid SpeakCommand: Value not of type java.lang.String cannot be converted to JSONObject

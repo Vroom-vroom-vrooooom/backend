@@ -34,7 +34,7 @@
 | Pleos TTS | SDK 재생 시작·완료 콜백 통과 | `doSpeak`, `onStart`, `onDone` 관측. 청취 품질·첫 음절 손실은 검증하지 않음 |
 | NaviHelper | 서비스 연결 통과 | `onServiceConnected`, 서비스 버전 3.0.4, callback/listener 등록 관측. 경로 안내 실행은 미검증 |
 | 잘못된 음성 메시지 | 통과: 3/3 거부 | 빈 문장, 버전 9, 깨진 JSON에 `Ignoring invalid SpeakCommand` |
-| 다른 여행의 음성 메시지 | **실패** | 다른 tripId인데 표시·`doSpeak` 발생. [재현 화면](qa/2026-11-13/03-wrong-trip.png), [SDK 로그](qa/2026-11-13/pleos-runtime.log) |
+| 다른 여행의 음성 메시지 | **실패** | 다른 tripId인데 표시·`doSpeak` 발생. [재현 화면](qa/2026-11-13/03-wrong-trip.png), [SDK 로그](qa/2026-11-13/pleos-runtime.txt) |
 
 ADB는 아직 없는 앱의 HTTP 전달 계층을 테스트 목적으로 대신했다. 따라서 Claude 응답 표시와 TTS 콜백 성공을 앱·BE 종단 간 연결 성공으로 해석하면 안 된다. 테스트 계정·여행·기기는 정리했고 에뮬레이터도 종료했다.
 
