@@ -15,10 +15,34 @@ from pydantic import ValidationError
 
 from .claude import Claude
 from .models import (Credentials, Device, DriveEvent, ExtractionRequest, PairClaim,
-                     Place, RadioRequest, RecommendationRequest, SpeakCommand, TripPlan, TripWrite)
+                     Place, RadioRequest, RadioResponse, RecommendationRequest, SpeakCommand, TripPlan, TripWrite)
 from .store import Store
 
-app = FastAPI(title="차곡 Backend & AI", version="1.0.0")
+app = FastAPI(
+    title="차곡 Backend & AI", version="1.0.1",
+    description="""차곡 앱의 계정·여행·메시지·Claude AI용 자체 REST API입니다.
+TripPlan / SpeakCommand / DriveEvent는 차곡 CONTRACT.md v1 규격입니다.
+
+2026-11-13 [공모전 공식 개발 가이드](https://appdevchallenge.auto-hmg.io/guide/development)와
+[Pleos SDK 문서](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/)를 대조했습니다.
+NaviHelper 호출, TTS 재생, CarUxRestrictions 적용, Audio Focus 처리는 차량 앱에서 수행합니다.
+메시지 등록 성공은 내비게이션 실행·음성 재생 성공을 의미하지 않습니다.
+
+**현재 상태:** BE 배포 및 API 테스트 완료. Android HTTP 연결, 주행 제한·오디오 포커스·Gleo 연동과
+Pleos 에뮬레이터 종단 간 검증은 미완료입니다.
+[공식 가이드 대조표와 FE 연동 주의사항](https://github.com/Vroom-vroom-vrooooom/backend/blob/main/docs/pleos-integration.md)
+
+보호된 API는 Authorize에 로그인 access_token을 입력합니다. 계정 토큰은 여행·기기·AI를 관리하고,
+기기 토큰은 여행 조회·자신의 메시지 조회·이벤트 전송에 사용합니다.
+""",
+    openapi_tags=[
+        {"name": "Trips", "description": "차곡 여행 계획 저장. 실제 경로 설정은 차량의 NaviHelper SDK에서 처리합니다."},
+        {"name": "Vehicle relay", "description": "차곡 v1 메시지 전달 및 사용자 행동 이벤트. Pleos SDK 실행 결과와 구분하세요."},
+        {"name": "AI", "description": "서버의 Claude 호출. Gleo 음성 명령 연동은 차량 앱의 별도 구현입니다."},
+    ],
+    openapi_external_docs={"description": "현대자동차그룹 공모전 공식 개발 가이드",
+                           "url": "https://appdevchallenge.auto-hmg.io/guide/development"},
+)
 bearer = HTTPBearer(auto_error=False)
 hasher = PasswordHasher()
 dummy_hash = hasher.hash(secrets.token_urlsafe(32))
@@ -169,7 +193,7 @@ def claim_pair(body: PairClaim):
     return register_device(Device(name=body.name, kind=body.kind), pairing["owner"])
 
 
-@app.post("/v1/trips", status_code=201)
+@app.post("/v1/trips", status_code=201, response_model=TripPlan, tags=["Trips"])
 def create_trip(body: TripWrite, uid=Depends(account)):
     key = secrets.token_hex(16)
     data = body.model_dump(mode="json")
@@ -179,17 +203,17 @@ def create_trip(body: TripWrite, uid=Depends(account)):
     return trip_plan(trip)
 
 
-@app.get("/v1/trips")
+@app.get("/v1/trips", response_model=list[TripPlan], tags=["Trips"])
 def trips(uid=Depends(owner)):
     return [trip_plan(t) for t in store().list("trips", "owner", uid)]
 
 
-@app.get("/v1/trips/{trip_id}")
+@app.get("/v1/trips/{trip_id}", response_model=TripPlan, tags=["Trips"])
 def get_trip(trip_id: str, uid=Depends(owner)):
     return trip_plan(owned("trips", trip_id, uid))
 
 
-@app.put("/v1/trips/{trip_id}")
+@app.put("/v1/trips/{trip_id}", response_model=TripPlan, tags=["Trips"])
 def update_trip(trip_id: str, body: TripWrite, uid=Depends(account)):
     trip = owned("trips", trip_id, uid)
     data = body.model_dump(mode="json")
@@ -198,7 +222,7 @@ def update_trip(trip_id: str, body: TripWrite, uid=Depends(account)):
     return trip_plan(trip)
 
 
-@app.delete("/v1/trips/{trip_id}", status_code=204)
+@app.delete("/v1/trips/{trip_id}", status_code=204, tags=["Trips"])
 def delete_trip(trip_id: str, uid=Depends(account)):
     owned("trips", trip_id, uid)
     # Delete associated data before the parent. Repeating deletion is safe.
@@ -209,8 +233,14 @@ def delete_trip(trip_id: str, uid=Depends(account)):
     store().delete("trips", trip_id)
 
 
-@app.post("/v1/trips/{trip_id}/stage")
+@app.post("/v1/trips/{trip_id}/stage", tags=["Vehicle relay"])
 def stage_trip(trip_id: str, device_id: str, uid=Depends(account)):
+    """TripPlan을 소유한 Pleos 기기 큐에 등록합니다.
+
+    응답 messageId는 큐 등록 확인입니다. 차량 앱은 사용자 선택과 실제 좌표를 기준으로
+    NaviHelper에 목적지·최대 두 경유지를 전달하고, 결과를 SDK 콜백으로 확인해야 합니다.
+    여행의 전체 places 목록은 내비게이션의 활성 경유지 목록과 다릅니다.
+    """
     trip = owned("trips", trip_id, uid)
     device = owned("devices", device_id, uid)
     if device["kind"] != "pleos":
@@ -218,8 +248,16 @@ def stage_trip(trip_id: str, device_id: str, uid=Depends(account)):
     return {"messageId": queue(uid, trip_id, "TripPlan", trip_plan(trip), device_id)}
 
 
-@app.get("/v1/devices/{device_id}/messages")
+@app.get("/v1/devices/{device_id}/messages", tags=["Vehicle relay"])
 def messages(device_id: str, after: str = "", claims=Depends(identity)):
+    """최대 100개 메시지와 nextCursor를 반환합니다.
+
+    envelope의 kind는 TripPlan 또는 SpeakCommand, payload는 차곡 v1 JSON입니다.
+    id로 중복 처리하고 처리 후 nextCursor를 저장하세요. cursor는 불투명 문자열이며,
+    created(Unix nanoseconds)를 JavaScript Number로 변환해 커서를 만들면 안 됩니다.
+    현재 서버에 메시지 만료 기능은 없습니다. 재접속 시 오래된 음성 메시지를 무조건 재생하지 말고
+    활성 tripId·현재 맥락·오디오 포커스를 차량에서 다시 확인해야 합니다.
+    """
     uid = claims["sub"]
     owned("devices", device_id, uid)
     if claims.get("device") and claims["device"] != device_id:
@@ -229,8 +267,13 @@ def messages(device_id: str, after: str = "", claims=Depends(identity)):
     return {"messages": rows, "nextCursor": rows[-1]["cursor"] if rows else after}
 
 
-@app.post("/v1/trips/{trip_id}/events", status_code=201)
+@app.post("/v1/trips/{trip_id}/events", status_code=201, tags=["Vehicle relay"])
 def event(trip_id: str, body: DriveEvent, uid=Depends(owner)):
+    """사용자 행동을 중복 없이 저장합니다.
+
+    WAYPOINT_APPROVED는 사용자의 승인 기록이며 경로 설정 성공·실제 방문 증명이 아닙니다.
+    NaviHelper 성공/실패는 차량 앱이 SDK 콜백으로 처리합니다. v1에는 SDK 결과 이벤트가 없습니다.
+    """
     trip = owned("trips", trip_id, uid)
     if body.tripId != trip_id:
         raise HTTPException(422, "tripId mismatch")
@@ -245,14 +288,14 @@ def event(trip_id: str, body: DriveEvent, uid=Depends(owner)):
     return {"eventId": key}
 
 
-@app.get("/v1/trips/{trip_id}/events")
+@app.get("/v1/trips/{trip_id}/events", response_model=list[DriveEvent], tags=["Vehicle relay"])
 def events(trip_id: str, uid=Depends(owner)):
     owned("trips", trip_id, uid)
     rows = store().trip_events(trip_id)
     return [r["payload"] for r in rows]
 
 
-@app.post("/v1/ai/recommendations")
+@app.post("/v1/ai/recommendations", tags=["AI"])
 async def recommendations(body: RecommendationRequest, uid=Depends(account)):
     trip = owned("trips", body.tripId, uid)
     throttle("ai-" + uid, 20, 3600)
@@ -273,8 +316,14 @@ async def recommendations(body: RecommendationRequest, uid=Depends(account)):
     return {"places": output, "model": claude().model}
 
 
-@app.post("/v1/trips/{trip_id}/radio")
+@app.post("/v1/trips/{trip_id}/radio", response_model=RadioResponse, tags=["AI"])
 async def radio(trip_id: str, body: RadioRequest, device_id: str, uid=Depends(account)):
+    """제공된 사실로 짧은 대사를 생성하고 SpeakCommand를 큐에 등록합니다.
+
+    서버는 차량 상태를 판정하거나 TTS를 직접 재생하지 않습니다. 차량 앱은 Pleos TTS와
+    Audio Focus 정책을 적용하고, Gleo·통화 등에 의한 포커스 상실 시 재생을 중단해야 합니다.
+    같은 명령이 응답과 메시지 큐 양쪽에 있으므로 messageId로 중복 재생을 방지하세요.
+    """
     trip = owned("trips", trip_id, uid)
     device = owned("devices", device_id, uid)
     if device["kind"] != "pleos":
@@ -293,7 +342,7 @@ async def radio(trip_id: str, body: RadioRequest, device_id: str, uid=Depends(ac
     return {"command": command, "messageId": queue(uid, trip_id, "SpeakCommand", command.model_dump(mode="json"), device_id)}
 
 
-@app.post("/v1/ai/extract-places")
+@app.post("/v1/ai/extract-places", tags=["AI"])
 async def extract_places(body: ExtractionRequest, uid=Depends(account)):
     throttle("ai-" + uid, 20, 3600)
     result = await claude().structured("Extract explicitly named travel places from supplied transcript/description. Quote the exact supporting phrase in evidence. Return no places when absent. Do not infer coordinates.",
@@ -313,7 +362,7 @@ async def extract_places(body: ExtractionRequest, uid=Depends(account)):
     return {"places": output}
 
 
-@app.post("/v1/trips/{trip_id}/summary")
+@app.post("/v1/trips/{trip_id}/summary", tags=["AI"])
 async def summary(trip_id: str, uid=Depends(account)):
     trip = owned("trips", trip_id, uid)
     recorded = events(trip_id, uid)

@@ -2,7 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "차곡 Backend & AI",
-    "version": "1.0.0"
+    "description": "차곡 앱의 계정·여행·메시지·Claude AI용 자체 REST API입니다.\nTripPlan / SpeakCommand / DriveEvent는 차곡 CONTRACT.md v1 규격입니다.\n\n2026-11-13 [공모전 공식 개발 가이드](https://appdevchallenge.auto-hmg.io/guide/development)와\n[Pleos SDK 문서](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/)를 대조했습니다.\nNaviHelper 호출, TTS 재생, CarUxRestrictions 적용, Audio Focus 처리는 차량 앱에서 수행합니다.\n메시지 등록 성공은 내비게이션 실행·음성 재생 성공을 의미하지 않습니다.\n\n**현재 상태:** BE 배포 및 API 테스트 완료. Android HTTP 연결, 주행 제한·오디오 포커스·Gleo 연동과\nPleos 에뮬레이터 종단 간 검증은 미완료입니다.\n[공식 가이드 대조표와 FE 연동 주의사항](https://github.com/Vroom-vroom-vrooooom/backend/blob/main/docs/pleos-integration.md)\n\n보호된 API는 Authorize에 로그인 access_token을 입력합니다. 계정 토큰은 여행·기기·AI를 관리하고,\n기기 토큰은 여행 조회·자신의 메시지 조회·이벤트 전송에 사용합니다.\n",
+    "version": "1.0.1"
   },
   "paths": {
     "/health": {
@@ -261,6 +262,9 @@
     },
     "/v1/trips": {
       "get": {
+        "tags": [
+          "Trips"
+        ],
         "summary": "Trips",
         "operationId": "trips_v1_trips_get",
         "responses": {
@@ -268,7 +272,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TripPlan"
+                  },
+                  "type": "array",
+                  "title": "Response Trips V1 Trips Get"
+                }
               }
             }
           }
@@ -280,6 +290,9 @@
         ]
       },
       "post": {
+        "tags": [
+          "Trips"
+        ],
         "summary": "Create Trip",
         "operationId": "create_trip_v1_trips_post",
         "requestBody": {
@@ -297,7 +310,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TripPlan"
+                }
               }
             }
           },
@@ -321,6 +336,9 @@
     },
     "/v1/trips/{trip_id}": {
       "get": {
+        "tags": [
+          "Trips"
+        ],
         "summary": "Get Trip",
         "operationId": "get_trip_v1_trips__trip_id__get",
         "security": [
@@ -344,7 +362,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TripPlan"
+                }
               }
             }
           },
@@ -361,6 +381,9 @@
         }
       },
       "put": {
+        "tags": [
+          "Trips"
+        ],
         "summary": "Update Trip",
         "operationId": "update_trip_v1_trips__trip_id__put",
         "security": [
@@ -394,7 +417,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TripPlan"
+                }
               }
             }
           },
@@ -411,6 +436,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "Trips"
+        ],
         "summary": "Delete Trip",
         "operationId": "delete_trip_v1_trips__trip_id__delete",
         "security": [
@@ -448,7 +476,11 @@
     },
     "/v1/trips/{trip_id}/stage": {
       "post": {
+        "tags": [
+          "Vehicle relay"
+        ],
         "summary": "Stage Trip",
+        "description": "TripPlan을 소유한 Pleos 기기 큐에 등록합니다.\n\n응답 messageId는 큐 등록 확인입니다. 차량 앱은 사용자 선택과 실제 좌표를 기준으로\nNaviHelper에 목적지·최대 두 경유지를 전달하고, 결과를 SDK 콜백으로 확인해야 합니다.\n여행의 전체 places 목록은 내비게이션의 활성 경유지 목록과 다릅니다.",
         "operationId": "stage_trip_v1_trips__trip_id__stage_post",
         "security": [
           {
@@ -499,7 +531,11 @@
     },
     "/v1/devices/{device_id}/messages": {
       "get": {
+        "tags": [
+          "Vehicle relay"
+        ],
         "summary": "Messages",
+        "description": "최대 100개 메시지와 nextCursor를 반환합니다.\n\nenvelope의 kind는 TripPlan 또는 SpeakCommand, payload는 차곡 v1 JSON입니다.\nid로 중복 처리하고 처리 후 nextCursor를 저장하세요. cursor는 불투명 문자열이며,\ncreated(Unix nanoseconds)를 JavaScript Number로 변환해 커서를 만들면 안 됩니다.\n현재 서버에 메시지 만료 기능은 없습니다. 재접속 시 오래된 음성 메시지를 무조건 재생하지 말고\n활성 tripId·현재 맥락·오디오 포커스를 차량에서 다시 확인해야 합니다.",
         "operationId": "messages_v1_devices__device_id__messages_get",
         "security": [
           {
@@ -551,7 +587,11 @@
     },
     "/v1/trips/{trip_id}/events": {
       "post": {
+        "tags": [
+          "Vehicle relay"
+        ],
         "summary": "Event",
+        "description": "사용자 행동을 중복 없이 저장합니다.\n\nWAYPOINT_APPROVED는 사용자의 승인 기록이며 경로 설정 성공·실제 방문 증명이 아닙니다.\nNaviHelper 성공/실패는 차량 앱이 SDK 콜백으로 처리합니다. v1에는 SDK 결과 이벤트가 없습니다.",
         "operationId": "event_v1_trips__trip_id__events_post",
         "security": [
           {
@@ -601,6 +641,9 @@
         }
       },
       "get": {
+        "tags": [
+          "Vehicle relay"
+        ],
         "summary": "Events",
         "operationId": "events_v1_trips__trip_id__events_get",
         "security": [
@@ -624,7 +667,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriveEvent"
+                  },
+                  "title": "Response Events V1 Trips  Trip Id  Events Get"
+                }
               }
             }
           },
@@ -643,6 +692,9 @@
     },
     "/v1/ai/recommendations": {
       "post": {
+        "tags": [
+          "AI"
+        ],
         "summary": "Recommendations",
         "operationId": "recommendations_v1_ai_recommendations_post",
         "requestBody": {
@@ -684,7 +736,11 @@
     },
     "/v1/trips/{trip_id}/radio": {
       "post": {
+        "tags": [
+          "AI"
+        ],
         "summary": "Radio",
+        "description": "제공된 사실로 짧은 대사를 생성하고 SpeakCommand를 큐에 등록합니다.\n\n서버는 차량 상태를 판정하거나 TTS를 직접 재생하지 않습니다. 차량 앱은 Pleos TTS와\nAudio Focus 정책을 적용하고, Gleo·통화 등에 의한 포커스 상실 시 재생을 중단해야 합니다.\n같은 명령이 응답과 메시지 큐 양쪽에 있으므로 messageId로 중복 재생을 방지하세요.",
         "operationId": "radio_v1_trips__trip_id__radio_post",
         "security": [
           {
@@ -726,7 +782,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RadioResponse"
+                }
               }
             }
           },
@@ -745,6 +803,9 @@
     },
     "/v1/ai/extract-places": {
       "post": {
+        "tags": [
+          "AI"
+        ],
         "summary": "Extract Places",
         "operationId": "extract_places_v1_ai_extract_places_post",
         "requestBody": {
@@ -786,6 +847,9 @@
     },
     "/v1/trips/{trip_id}/summary": {
       "post": {
+        "tags": [
+          "AI"
+        ],
         "summary": "Summary",
         "operationId": "summary_v1_trips__trip_id__summary_post",
         "security": [
@@ -926,7 +990,8 @@
           "type",
           "at"
         ],
-        "title": "DriveEvent"
+        "title": "DriveEvent",
+        "description": "차곡 사용자 행동 기록. WAYPOINT_APPROVED는 내비 실행 성공이나 방문 증명이 아닙니다."
       },
       "ExtractionRequest": {
         "properties": {
@@ -1073,7 +1138,8 @@
                 "type": "null"
               }
             ],
-            "title": "Lat"
+            "title": "Lat",
+            "description": "위도. lng와 함께 제공; NaviHelper latitude에 대응합니다."
           },
           "lng": {
             "anyOf": [
@@ -1086,7 +1152,8 @@
                 "type": "null"
               }
             ],
-            "title": "Lng"
+            "title": "Lng",
+            "description": "경도. lat와 함께 제공; NaviHelper longitude에 대응합니다."
           },
           "open": {
             "type": "string",
@@ -1101,7 +1168,8 @@
           "id",
           "name"
         ],
-        "title": "Place"
+        "title": "Place",
+        "description": "차곡 장소. 좌표 없는 장소는 저장 가능하지만 NaviHelper 경로 요청에 사용할 수 없습니다."
       },
       "RadioRequest": {
         "properties": {
@@ -1128,6 +1196,26 @@
         ],
         "title": "RadioRequest"
       },
+      "RadioResponse": {
+        "properties": {
+          "command": {
+            "$ref": "#/components/schemas/SpeakCommand"
+          },
+          "messageId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$",
+            "title": "Messageid",
+            "description": "큐에 저장된 envelope id. 직접 응답과 폴링 결과의 중복 재생 방지에 사용합니다."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command",
+          "messageId"
+        ],
+        "title": "RadioResponse"
+      },
       "RecommendationRequest": {
         "properties": {
           "tripId": {
@@ -1153,7 +1241,46 @@
         ],
         "title": "RecommendationRequest"
       },
-      "TripWrite": {
+      "SpeakCommand": {
+        "properties": {
+          "v": {
+            "type": "integer",
+            "const": 1,
+            "title": "V",
+            "default": 1
+          },
+          "tripId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$",
+            "title": "Tripid"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Place"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tripId",
+          "text"
+        ],
+        "title": "SpeakCommand",
+        "description": "차곡 대사 메시지. 실제 재생 여부와 오디오 포커스는 차량 앱에서 결정합니다."
+      },
+      "TripPlan": {
         "properties": {
           "destination": {
             "type": "string",
@@ -1183,6 +1310,7 @@
           "recordRoute": {
             "type": "boolean",
             "title": "Recordroute",
+            "description": "계획상의 선호값. 현재 서버는 true여도 위치 이력을 수집하지 않습니다.",
             "default": false
           },
           "companions": {
@@ -1223,7 +1351,108 @@
             },
             "type": "array",
             "maxItems": 100,
-            "title": "Places"
+            "title": "Places",
+            "description": "전체 여행 장소 목록. NaviHelper의 동시 활성 경유지(최대 2개)와 다릅니다."
+          },
+          "v": {
+            "type": "integer",
+            "const": 1,
+            "title": "V",
+            "default": 1
+          },
+          "tripId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,100}$",
+            "title": "Tripid"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "destination",
+          "departure",
+          "companions",
+          "interests",
+          "mood",
+          "density",
+          "tripId"
+        ],
+        "title": "TripPlan",
+        "description": "차곡 CONTRACT.md v1 여행 메시지. 차량 앱이 Pleos SDK 입력으로 변환합니다."
+      },
+      "TripWrite": {
+        "properties": {
+          "destination": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Destination"
+          },
+          "departure": {
+            "type": "string",
+            "format": "date",
+            "title": "Departure"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "const": "미정"
+              }
+            ],
+            "title": "Enddate",
+            "default": "미정"
+          },
+          "recordRoute": {
+            "type": "boolean",
+            "title": "Recordroute",
+            "description": "계획상의 선호값. 현재 서버는 true여도 위치 이력을 수집하지 않습니다.",
+            "default": false
+          },
+          "companions": {
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Companions"
+          },
+          "interests": {
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Interests"
+          },
+          "mood": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Mood"
+          },
+          "density": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Density"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Places",
+            "description": "전체 여행 장소 목록. NaviHelper의 동시 활성 경유지(최대 2개)와 다릅니다."
           },
           "visibility": {
             "type": "string",
@@ -1294,5 +1523,23 @@
         "scheme": "bearer"
       }
     }
+  },
+  "tags": [
+    {
+      "name": "Trips",
+      "description": "차곡 여행 계획 저장. 실제 경로 설정은 차량의 NaviHelper SDK에서 처리합니다."
+    },
+    {
+      "name": "Vehicle relay",
+      "description": "차곡 v1 메시지 전달 및 사용자 행동 이벤트. Pleos SDK 실행 결과와 구분하세요."
+    },
+    {
+      "name": "AI",
+      "description": "서버의 Claude 호출. Gleo 음성 명령 연동은 차량 앱의 별도 구현입니다."
+    }
+  ],
+  "externalDocs": {
+    "description": "현대자동차그룹 공모전 공식 개발 가이드",
+    "url": "https://appdevchallenge.auto-hmg.io/guide/development"
   }
 }

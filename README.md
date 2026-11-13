@@ -5,9 +5,12 @@ FastAPI + Firestore + Claude Messages API. Cloud Run service: `chagok-api`, proj
 - Live API: https://chagok-api-om4h3skohq-du.a.run.app
 - Interactive API docs: https://chagok-api-om4h3skohq-du.a.run.app/docs
 - Health: https://chagok-api-om4h3skohq-du.a.run.app/health (`/healthz` is not usable through the public Google frontend in this deployment).
-- Verified on 2026-11-13: 13 automated tests and live Firestore/Claude smoke tests. [Smoke results](deploy/smoke-results.json) contain synthetic data only. Live revision: `chagok-api-00002-kxg`.
+- Release 1.0.1 verified on 2026-11-13: 13 automated tests; live health, Swagger and OpenAPI checks. Live revision: `chagok-api-00003-nbf`.
+- Initial live Firestore/Claude [smoke results](deploy/smoke-results.json) contain synthetic data only and were recorded against revision `chagok-api-00002-kxg`.
 
 The existing phone and Pleos applications still use demo repositories and adb broadcasts. This server implements their CONTRACT.md v1 payloads; mobile developers must connect HTTP transport. It does not modify or build the Android applications.
+
+Official contest/Pleos documentation was cross-checked on 2026-11-13 after the initial implementation. These are Chagok's own REST APIs, with the vehicle app responsible for Pleos SDK calls. See the [official-guide comparison and FE integration notes (한국어)](docs/pleos-integration.md), including incomplete driving restrictions, audio focus, Gleo integration and emulator validation. Swagger includes this boundary and the TripPlan / DriveEvent / SpeakCommand response schemas.
 
 ## Implemented
 
