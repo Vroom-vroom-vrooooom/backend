@@ -1,0 +1,138 @@
+app\src\main\res\values\strings.xml:13: Error: android:lineBreakWordStyle requires API level 33 (current min is 28) [NewApi]
+        <item name="android:fontFamily">sans-serif-medium</item><item name="android:lineSpacingMultiplier">1.2</item><item name="android:lineBreakWordStyle">phrase</item><item name="android:letterSpacing">-0.02</item>
+                                                                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\res\values\strings.xml:34: Error: android:lineBreakWordStyle requires API level 33 (current min is 28) [NewApi]
+        <item name="android:breakStrategy">balanced</item><item name="android:lineBreakWordStyle">phrase</item>
+                                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "NewApi":
+   This check scans through all the Android API calls in the application and
+   warns about any calls that are not available on all versions targeted by
+   this application (according to its minimum SDK attribute in the manifest).
+
+   If you really want to use this API and don't need to support older devices
+   just set the minSdkVersion in your build.gradle or AndroidManifest.xml
+   files.
+
+   If your code is deliberately accessing newer APIs, and you have ensured
+   (e.g. with conditional execution) that this code will only ever be called
+   on a supported platform, then you can annotate your class or method with
+   the @TargetApi annotation specifying the local minimum SDK to apply, such
+   as @TargetApi(11), such that this check considers 11 rather than your
+   manifest file's minimum SDK as the required API level.
+
+   If you are deliberately setting android: attributes in style definitions,
+   make sure you place this in a values-vNN folder in order to avoid running
+   into runtime conflicts on certain devices where manufacturers have added
+   custom attributes whose ids conflict with the new ones on later platforms.
+
+   Similarly, you can use tools:targetApi="11" in an XML file to indicate that
+   the element will only be inflated in an adequate context.
+
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:104: Error: receiver is missing RECEIVER_EXPORTED or RECEIVER_NOT_EXPORTED flag for unprotected broadcasts registered for io.chagok.app.pleos.SPEAK, io.chagok.app.pleos.TRIP, io.chagok.app.pleos.ARRIVE [UnspecifiedRegisterReceiverFlag]
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_EXPORTED) else registerReceiver(receiver, filter)
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UnspecifiedRegisterReceiverFlag":
+   In Android U, all receivers registering for non-system broadcasts are
+   required to include a flag indicating the receiver's exported state. Apps
+   registering for non-system broadcasts should use the
+   ContextCompat#registerReceiver APIs with flags set to either
+   RECEIVER_EXPORTED or RECEIVER_NOT_EXPORTED.
+
+   If you are not expecting broadcasts from other apps on the device, register
+   your receiver with RECEIVER_NOT_EXPORTED to protect your receiver on all
+   platform releases.
+
+   https://developer.android.com/reference/androidx/core/content/ContextCompat#registerReceiver(android.content.Context,android.content.BroadcastReceiver,android.content.IntentFilter,int)
+
+app\src\main\res\layout\activity_car.xml:31: Error: No orientation specified, and the default is horizontal. This is a common source of bugs when children are added dynamically. [Orientation]
+            <LinearLayout android:id="@+id/start_trips" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+             ~~~~~~~~~~~~
+
+   Explanation for issues of type "Orientation":
+   The default orientation of a LinearLayout is horizontal. It's pretty easy
+   to believe that the layout is vertical, add multiple children to it, and
+   wonder why only the first child is visible (when the subsequent children
+   are off screen to the right). This lint rule helps pinpoint this issue by
+   warning whenever a LinearLayout is used with an implicit orientation and
+   multiple children.
+
+   It also checks for empty LinearLayouts without an orientation attribute
+   that also defines an id attribute. This catches the scenarios where
+   children will be added to the LinearLayout dynamically. 
+
+app\src\main\AndroidManifest.xml:8: Warning: The attribute android:allowBackup is deprecated from Android 12 and higher and may be removed in future versions. Consider adding the attribute android:dataExtractionRules specifying an @xml resource which configures cloud backups and device transfers on Android 12 and higher. [DataExtractionRules]
+        android:allowBackup="false"
+                             ~~~~~
+
+   Explanation for issues of type "DataExtractionRules":
+   Before Android 12, the attributes android:allowBackup and
+   android:fullBackupContent were used to configure all forms of backup,
+   including cloud backups, device-to-device transfers and adb backup.
+
+   In Android 12 and higher, these attributes have been deprecated and will
+   only apply to cloud backups. You should instead use the attribute
+   android:dataExtractionRules, specifying an @xml resource that configures
+   which files to back up, for cloud backups and for device-to-device
+   transfers, separately. If your minSdkVersion supports older versions,
+   you'll still want to specify an android:fullBackupContent resource if the
+   default behavior is not right for your app.
+
+   https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   https://goo.gle/DataExtractionRules
+
+app\src\main\res\values\colors.xml:9: Warning: The resource R.color.accent appears to be unused [UnusedResources]
+    <color name="accent">#AA6744</color>
+           ~~~~~~~~~~~~~
+
+   Explanation for issues of type "UnusedResources":
+   Unused resources make applications larger and slow down builds.
+
+
+   The unused resource check can ignore tests. If you want to include
+   resources that are only referenced from tests, consider packaging them in a
+   test source set instead.
+
+   You can include test sources in the unused resource check by setting the
+   system property lint.unused-resources.include-tests =true, and to exclude
+   them (usually for performance reasons), use
+   lint.unused-resources.exclude-tests =true.
+   ,
+
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:311: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+            monthDay(draft.departure) + if (who.isEmpty() || who == listOf("혼자")) " · 혼자 떠나요" else " · ${wa(who.joinToString(", "))} 함께"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:320: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        findViewById<TextView>(R.id.start_foot).text = (listOf("${route.size}곳 들러요") + draft.interests).joinToString("  ·  ")
+                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:327: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                    text = "${t.draft.destination} · ${t.places.size}곳"; isSelected = t.tripId == plan.tripId
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:369: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        findViewById<TextView>(R.id.sheet_title).text = "${place.name}, 들렀다 갈까요?"
+                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:381: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        findViewById<TextView>(R.id.arrive_title).text = "${draft.destination}에 도착했어요"
+                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\java\io\chagok\app\ui\CarActivity.kt:382: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        findViewById<TextView>(R.id.arrive_route).text = (listOf("출발") + route.map(Place::name)).joinToString("  →  ")
+                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+app\src\main\java\io\chagok\app\ui\ScreenActivity.kt:66: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        text = (if (selected) "✓  " else "") + label; textSize = 14f; isAllCaps = false; minHeight = dp(52)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "SetTextI18n":
+   When calling TextView#setText
+   * Never call Number#toString() to format numbers; it will not handle
+   fraction separators and locale-specific digits properly. Consider using
+   String#format with proper format specifications (%d or %f) instead.
+   * Do not pass a string literal (e.g. "Hello") to display text. Hardcoded
+   text can not be properly translated to other languages. Consider using
+   Android resource strings instead.
+   * Do not build messages by concatenating text chunks. Such messages can not
+   be properly translated.
+
+   https://developer.android.com/guide/topics/resources/localization.html
+
+4 errors, 9 warnings

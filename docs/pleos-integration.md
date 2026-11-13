@@ -12,9 +12,11 @@
 
 Android 소스 검토 기준: [pleos 0620e6a](https://github.com/Vroom-vroom-vrooooom/pleos/tree/0620e6a97d3e0baeaf410b6409558fa04fd36499). 서버의 자동 테스트와 Cloud Run 검증은 Android/SDK 검증을 대신하지 않는다.
 
+후속 [실행 검증 보고서](verification-2026-11-13.md): 앱 소스 변경 없이 두 APK를 빌드하고 Pleos 에뮬레이터에서 Claude 대사 표시·TTS 콜백을 확인했다. 다른 여행 메시지 처리 버그와 Lint 오류를 재현했으며, 실제 HTTP 종단 간 연결과 주행 안전 시나리오는 여전히 미완료다.
+
 | 항목 | 공식 기준 | 현재 상태 및 후속 작업 |
 | --- | --- | --- |
-| 개발 환경 | 공모전 가이드: Android API 28+, Gradle 8+, Java/Kotlin | 차량 앱 `minSdk 28`, Kotlin. 이 작업에서 APK 빌드·에뮬레이터 실행은 검증하지 않았다. |
+| 개발 환경 | 공모전 가이드: Android API 28+, Gradle 8+, Java/Kotlin | 차량 앱 `minSdk 28`, Kotlin. 후속 검증에서 Gradle 8.9 APK 빌드와 공식 에뮬레이터 실행 확인. Lint는 오류 4개로 실패했다. |
 | 내비게이션 | [NaviHelper 3.0.5](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/NaviHelper/intro), [경로 요청 결과는 콜백으로 확인](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/NaviHelper/route-with-waypoints) | 앱 의존성 버전은 일치한다. BE는 TripPlan을 전달한다. `PleosNavi.kt`는 좌표를 SDK에 전달하지만, `addWaypoint()` 호출 반환 직후 표시하는 성공 문구·경유지 수는 실제 SDK 결과와 일치하도록 후속 보완이 필요하다. |
 | 활성 경유지 | [최대 2개, FIRST/SECOND](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/NaviHelper/waypoint-settings) | 전체 여행 목록은 BE에 최대 100개 저장 가능하다. 이를 SDK 활성 경유지로 그대로 보내지 않는다. 앱은 현재 좌표 있는 장소 중 마지막을 목적지, 앞의 최대 두 곳을 경유지로 선택한다. 그 밖의 장소가 자동으로 모두 안내되지는 않는다. |
 | 음성 합성 | [TTS 3.3.1의 ON_DEVICE는 서버 앱 등록 불필요; HYBRID/SERVER는 등록 필요](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/TextToSpeech/intro) | 차량 앱은 3.3.1 / ON_DEVICE를 사용한다. Claude는 대사 생성용이고 Pleos TTS 자격 증명을 대체하지 않는다. 서버 합성으로 전환하면 별도 Playground 등록이 필요하다. |

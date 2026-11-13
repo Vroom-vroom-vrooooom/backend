@@ -1,0 +1,20 @@
+{
+  "displayGroupCompatibility": [
+    {
+      "sourceGroup": "저장",
+      "backendValidation": "rejected"
+    },
+    {
+      "sourceGroup": "이야기",
+      "backendValidation": "rejected"
+    },
+    {
+      "sourceGroup": "좋아요",
+      "backendValidation": "accepted"
+    }
+  ],
+  "webFrontendPreflight": {
+    "status": 405,
+    "allowOrigin": null
+  }
+}

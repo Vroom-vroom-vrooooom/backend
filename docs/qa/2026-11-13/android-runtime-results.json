@@ -1,0 +1,10 @@
+{
+  "coldLaunch": "passed",
+  "realClaudeDisplay": "passed",
+  "wrongTripRejection": "failed",
+  "malformedMessagesRejected": 3,
+  "ttsStartAndDoneCallbacks": "passed",
+  "naviSdkConnection": "passed",
+  "routeExecution": "not tested",
+  "appFatalException": false
+}
