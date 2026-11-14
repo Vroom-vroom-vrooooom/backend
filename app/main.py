@@ -75,10 +75,12 @@ def throttle(key, maximum, seconds=60):
 
 
 def token(uid, device_id=None):
-    now = int(time.time())
+    # A car must not have to pair again every day. Device tokens are checked against the devices
+    # collection on every request (identity()), so DELETE /v1/devices/{id} still revokes them at once.
+    now, ttl = int(time.time()), 86400 * (30 if device_id else 1)
     return {"access_token": jwt.encode({"sub": uid, "device": device_id, "iat": now,
-            "exp": now + 86400, "iss": "chagok", "aud": "chagok-api"}, secret("JWT_SECRET"), algorithm="HS256"),
-            "token_type": "bearer", "expires_in": 86400}
+            "exp": now + ttl, "iss": "chagok", "aud": "chagok-api"}, secret("JWT_SECRET"), algorithm="HS256"),
+            "token_type": "bearer", "expires_in": ttl}
 
 
 def identity(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
@@ -179,14 +181,20 @@ def revoke_device(device_id: str, uid=Depends(account)):
 
 @app.post("/v1/pairings", status_code=201)
 def pairing(uid=Depends(account)):
+    """8자리 숫자 코드(5분, 1회용). 폰에 띄우고 차량 앱에서 숫자 키패드로 입력합니다."""
     throttle("pair-" + uid, 5)
-    code = secrets.token_urlsafe(32)
-    store().put("pairings", digest(code), {"owner": uid, "expires": time.time() + 300})
-    return {"code": code, "expires_in": 300}
+    while True:  # a clash with another live code is ~1e-8; just draw again
+        code = f"{secrets.randbelow(10**8):08d}"
+        if store().create("pairings", digest(code), {"owner": uid, "expires": time.time() + 300}):
+            return {"code": code, "expires_in": 300}
 
 
 @app.post("/v1/pairings/claim")
 def claim_pair(body: PairClaim):
+    # 8 digits are typeable in a car but guessable without a cap: 30 tries/min across all callers
+    # gives ~150 guesses per 5-minute code (~1.5e-6 per code).
+    # ponytail: global cap, so a flood can block pairing for a minute; per-client limits if that happens.
+    throttle("claim", 30)
     pairing = store().consume_pair(digest(body.code))
     if not pairing:
         raise HTTPException(400, "Pairing expired or already used")
@@ -286,6 +294,18 @@ def event(trip_id: str, body: DriveEvent, uid=Depends(owner)):
     key = digest(json.dumps(payload, sort_keys=True))
     store().create("events", key, {"id": key, "owner": uid, "tripId": trip_id, "payload": payload})
     return {"eventId": key}
+
+
+@app.post("/v1/trips/{trip_id}/places", status_code=201, tags=["Vehicle relay"])
+def add_place(trip_id: str, body: Place, uid=Depends(owner)):
+    """여행 계획 밖의 장소(차량 '발견' 탭 등)를 여행 카탈로그에 등록합니다.
+
+    등록한 placeId로 PLACE_SAVED·WAYPOINT_APPROVED 이벤트를 보낼 수 있습니다. 기기 토큰 허용, 같은 id는 덮어씁니다.
+    """
+    owned("trips", trip_id, uid)
+    key = trip_id + "-" + body.id
+    store().put("trip_places", key, {"id": key, "tripId": trip_id, "owner": uid, "place": body.model_dump(mode="json")})
+    return {"placeId": body.id}
 
 
 @app.get("/v1/trips/{trip_id}/events", response_model=list[DriveEvent], tags=["Vehicle relay"])
