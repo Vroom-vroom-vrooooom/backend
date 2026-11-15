@@ -1,0 +1,121 @@
+name: Backend CI and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT_ID: vroom-514610
+  GCP_REGION: asia-northeast3
+  CLOUD_RUN_SERVICE: chagok-api
+  IMAGE_REPOSITORY: asia-northeast3-docker.pkg.dev/vroom-514610/chagok-images/chagok-api
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-lock.txt
+      - run: python -m pip install -r requirements-lock.txt
+      - run: python -m pytest -q
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://chagok-api-om4h3skohq-du.a.run.app
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-lock.txt
+      - run: python -m pip install -r requirements-lock.txt
+      - name: Build the tested commit
+        run: docker build --pull --tag "$IMAGE_REPOSITORY:$GITHUB_SHA" .
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: vroom-514610
+          workload_identity_provider: projects/694618586594/locations/global/workloadIdentityPools/github-actions/providers/backend-main
+          service_account: chagok-github-deploy@vroom-514610.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 1800s
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: Push image
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          printf '%s' "$ACCESS_TOKEN" | docker login -u oauth2accesstoken --password-stdin "${GCP_REGION}-docker.pkg.dev"
+          docker push "$IMAGE_REPOSITORY:$GITHUB_SHA"
+          digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_REPOSITORY:$GITHUB_SHA")
+          echo "DEPLOY_IMAGE=$digest" >> "$GITHUB_ENV"
+      - name: Deploy candidate without production traffic
+        id: candidate
+        env:
+          CLOUDSDK_AUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          suffix="gh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          revision="${CLOUD_RUN_SERVICE}-${suffix}"
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
+            --image="$DEPLOY_IMAGE" \
+            --service-account="chagok-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --revision-suffix="$suffix" --update-labels="commit-sha=$GITHUB_SHA,managed-by=github-actions" \
+            --no-traffic --tag=candidate --quiet --format=json > "$RUNNER_TEMP/deployment.json"
+          test "$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/deployment.json")" = "$revision"
+          url=$(jq -r '.status.traffic[] | select(.tag == "candidate") | .url' "$RUNNER_TEMP/deployment.json")
+          test -n "$url" && test "$url" != null
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+      - name: Verify candidate
+        env:
+          CANDIDATE_URL: ${{ steps.candidate.outputs.url }}
+        run: python deploy/verify_release.py "$CANDIDATE_URL"
+      - name: Promote verified revision
+        env:
+          CLOUDSDK_AUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          REVISION: ${{ steps.candidate.outputs.revision }}
+        run: |
+          gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
+            --to-revisions="$REVISION=100" --quiet
+          gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT_ID" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/production.json"
+          jq -e --arg revision "$REVISION" '.status.traffic | any(.revisionName == $revision and .percent == 100)' "$RUNNER_TEMP/production.json"
+          url=$(jq -r '.status.url' "$RUNNER_TEMP/production.json")
+          python deploy/verify_release.py "$url"
+          {
+            echo "### Deployed backend"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Revision: $REVISION"
+            echo "- API: $url"
+            echo "- Swagger: $url/docs"
+          } >> "$GITHUB_STEP_SUMMARY"

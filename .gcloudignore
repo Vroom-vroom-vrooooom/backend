@@ -8,3 +8,4 @@ tests
 deploy
 *.xml
 *.log
+gha-creds-*.json

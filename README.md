@@ -5,8 +5,8 @@ FastAPI + Firestore + Claude Messages API. Cloud Run service: `chagok-api`, proj
 - Live API: https://chagok-api-om4h3skohq-du.a.run.app
 - Interactive API docs: https://chagok-api-om4h3skohq-du.a.run.app/docs
 - Health: https://chagok-api-om4h3skohq-du.a.run.app/health (`/healthz` is not usable through the public Google frontend in this deployment).
-- Release 1.0.1 verified on 2026-11-13: 13 automated tests; live health, Swagger and OpenAPI checks. Live revision: `chagok-api-00003-nbf`.
-- Latest live Firestore/Claude [smoke results](deploy/smoke-results.json) contain synthetic data only and were recorded against revision `chagok-api-00003-nbf`. See the [2026-11-13 verification report](docs/verification-2026-11-13.md): both APKs build, but vehicle integration is incomplete and a wrong-trip speech bug was reproduced. App/FE source was not changed.
+- `main` deploys automatically through [GitHub Actions](https://github.com/Vroom-vroom-vrooooom/backend/actions/workflows/deploy.yml). Each successful run records the deployed commit, revision and URLs in its summary.
+- Live Firestore/Claude [smoke results](deploy/smoke-results.json) contain synthetic data only; `testedAt` and `revision` identify the checked release. The [2026-11-13 verification report](docs/verification-2026-11-13.md) is a historical app audit: both APKs build, but vehicle integration was incomplete and a wrong-trip speech bug was reproduced. App/FE source was not changed.
 
 The existing phone and Pleos applications still use demo repositories and adb broadcasts. This server implements their CONTRACT.md v1 payloads; mobile developers must connect HTTP transport. It does not modify or build the Android applications.
 
@@ -53,6 +53,10 @@ python -m venv .venv
 Tests use an in-memory store and mocked AI; the deployment smoke test separately exercises real Firestore and Claude. Production always uses Firestore, never local ephemeral SQLite.
 
 ## Deployment
+
+`main` pushes run tests, build a Docker image, deploy a candidate without production traffic, and verify health, exact OpenAPI, Swagger and authentication before routing 100% of traffic to the candidate. Pull requests run tests only. Manual reruns are available through Actions → Backend CI and deploy → Run workflow (`main`). See [pipeline setup and rollback](docs/deployment.md).
+
+GitHub authenticates with short-lived OIDC credentials. No GCP service-account key or application secrets are stored in GitHub. The runtime retains its existing Secret Manager references and Firestore identity. The older source-deployment script below is an administrator fallback and switches traffic directly.
 
 Prerequisites: gcloud authenticated to the project; billing enabled; APIs `run`, `cloudbuild`, `artifactregistry`, `firestore`, `secretmanager`, `iam` enabled. Runtime identity `chagok-runtime` has `roles/datastore.user` and secret-level accessor grants. Build identity `chagok-builder` has `roles/run.builder`. No downloadable service-account key is needed.
 

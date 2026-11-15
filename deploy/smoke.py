@@ -36,8 +36,10 @@ def run():
             login = call("POST", "/v1/auth/login", json=credentials)
             client.headers["Authorization"] = "Bearer " + login["access_token"]
             pair = call("POST", "/v1/pairings")
+            assert len(pair["code"]) == 8 and pair["code"].isascii() and pair["code"].isdigit()
             device = call("POST", "/v1/pairings/claim", json={"code": pair["code"], "name": "smoke Pleos", "kind": "pleos"})
             device_id = device["deviceId"]
+            assert device["expires_in"] == 30 * 24 * 3600
             assert client.post("/v1/pairings/claim", json={"code": pair["code"], "name": "replay", "kind": "pleos"}).status_code == 400
             place = {"id": "yeongnangho", "name": "영랑호", "source": "검증용 제공 사실", "group": "공유"}
             trip = call("POST", "/v1/trips", json={"destination": "속초", "departure": "2026-11-22", "companions": ["부모님"], "interests": ["지역 이야기"], "mood": "잔잔한", "density": "보통", "places": [place]})
@@ -51,7 +53,10 @@ def run():
             assert client.post("/v1/pairings", headers=device_headers).status_code == 403
             assert client.post("/v1/ai/recommendations", headers=device_headers,
                                json={"tripId": trip_id, "candidates": [place]}).status_code == 403
-            event = {"v": 1, "tripId": trip_id, "type": "PLACE_SAVED", "placeId": place["id"], "at": datetime.now(timezone.utc).isoformat()}
+            found_place = {"id": "car-found-place", "name": "차량에서 찾은 장소", "source": "검증용 제공 사실", "group": "공유"}
+            registered = call("POST", f"/v1/trips/{trip_id}/places", headers=device_headers, json=found_place)
+            assert registered["placeId"] == found_place["id"]
+            event = {"v": 1, "tripId": trip_id, "type": "PLACE_SAVED", "placeId": found_place["id"], "at": datetime.now(timezone.utc).isoformat()}
             first = call("POST", f"/v1/trips/{trip_id}/events", headers=device_headers, json=event)
             assert call("POST", f"/v1/trips/{trip_id}/events", headers=device_headers, json=event) == first
             assert len(call("GET", f"/v1/trips/{trip_id}/events")) == 1
@@ -59,7 +64,7 @@ def run():
                                json={**event, "v": 9}).status_code == 422
             assert client.post(f"/v1/trips/{trip_id}/events", headers=device_headers,
                                json={**event, "placeId": "unknown-place"}).status_code == 422
-            results["backend"] = "registration, login, one-use pairing, persistence, stage, device polling, cursor replay prevention, capability restrictions, invalid event rejection and idempotent events passed"
+            results["backend"] = "registration, login, 8-digit one-use pairing, 30-day device token, persistence, stage, device polling, cursor replay prevention, capability restrictions, car-found place registration, invalid event rejection and idempotent events passed"
             results["recommendations"] = call("POST", "/v1/ai/recommendations", json={"tripId": trip_id, "candidates": [place]})
             assert results["recommendations"]["places"][0]["id"] == place["id"]
             radio = call("POST", f"/v1/trips/{trip_id}/radio", params={"device_id": device_id}, json={"place": place, "facts": ["영랑호는 속초에 있는 호수다.", "호수 주위에 산책로가 있다."]})
@@ -83,7 +88,7 @@ def run():
                 # Delete only this generated test account using the deployer's short-lived token.
                 response = httpx.delete(f"https://firestore.googleapis.com/v1/projects/vroom-514610/databases/(default)/documents/users/{uid}", headers={"Authorization": "Bearer " + os.environ["GCP_ACCESS_TOKEN"]})
                 response.raise_for_status()
-    with open("deploy/smoke-results.json", "w", encoding="utf-8", newline="\n") as output:
+    with open(os.environ.get("SMOKE_RESULTS_PATH", "deploy/smoke-results.json"), "w", encoding="utf-8", newline="\n") as output:
         json.dump(results, output, ensure_ascii=False, indent=2)
         output.write("\n")
     print(json.dumps(results, ensure_ascii=True))
