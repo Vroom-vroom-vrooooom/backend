@@ -206,6 +206,7 @@
     "/v1/pairings": {
       "post": {
         "summary": "Pairing",
+        "description": "8자리 숫자 코드(5분, 1회용). 폰에 띄우고 차량 앱에서 숫자 키패드로 입력합니다.",
         "operationId": "pairing_v1_pairings_post",
         "responses": {
           "201": {
@@ -690,6 +691,62 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/places": {
+      "post": {
+        "tags": [
+          "Vehicle relay"
+        ],
+        "summary": "Add Place",
+        "description": "여행 계획 밖의 장소(차량 '발견' 탭 등)를 여행 카탈로그에 등록합니다.\n\n등록한 placeId로 PLACE_SAVED·WAYPOINT_APPROVED 이벤트를 보낼 수 있습니다. 기기 토큰 허용, 같은 id는 덮어씁니다.",
+        "operationId": "add_place_v1_trips__trip_id__places_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Place"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/ai/recommendations": {
       "post": {
         "tags": [
@@ -1058,8 +1115,7 @@
           },
           "code": {
             "type": "string",
-            "maxLength": 100,
-            "minLength": 32,
+            "pattern": "^\\d{8}$",
             "title": "Code"
           }
         },

@@ -104,7 +104,7 @@ class Device(Model):
 
 
 class PairClaim(Device):
-    code: str = Field(min_length=32, max_length=100)
+    code: str = Field(pattern=r"^\d{8}$")
 
 
 class RecommendationRequest(Model):

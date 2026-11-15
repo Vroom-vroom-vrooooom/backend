@@ -95,9 +95,17 @@ def test_pairing_single_use_stage_poll_and_revoke(env):
     code = client.post("/v1/pairings", headers=headers).json()["code"]
     payload = {"code": code, "name": "car", "kind": "pleos"}
     pair = client.post("/v1/pairings/claim", json=payload).json()
+    assert len(code) == 8 and code.isdigit()
+    assert pair["expires_in"] == 30 * 86400
     assert client.post("/v1/pairings/claim", json=payload).status_code == 400
+    assert client.post("/v1/pairings/claim", json={**payload, "code": "abc"}).status_code == 422
     device_headers = {"Authorization": "Bearer " + pair["access_token"]}
     plan = trip(client, headers)
+    event = {"v": 1, "tripId": plan["tripId"], "type": "PLACE_SAVED", "placeId": "found", "at": "2026-11-22T01:00:00Z"}
+    events = "/v1/trips/" + plan["tripId"] + "/events"
+    assert client.post(events, headers=device_headers, json=event).status_code == 422
+    assert client.post("/v1/trips/" + plan["tripId"] + "/places", headers=device_headers, json={"id": "found", "name": "영금정"}).status_code == 201
+    assert client.post(events, headers=device_headers, json=event).status_code == 201
     path = "/v1/devices/" + pair["deviceId"]
     assert client.post("/v1/trips/" + plan["tripId"] + "/stage", params={"device_id": pair["deviceId"]}, headers=headers).status_code == 200
     messages = client.get(path + "/messages", headers=device_headers).json()
